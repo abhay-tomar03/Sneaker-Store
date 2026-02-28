@@ -33,6 +33,13 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Google OAuth fields
+  isGoogleUser: {
+    type: Boolean,
+    default: false
+  },
+  googleId: String,
+  profilePicture: String,
   // OTP fields for email verification
   emailVerified: {
     type: Boolean,
