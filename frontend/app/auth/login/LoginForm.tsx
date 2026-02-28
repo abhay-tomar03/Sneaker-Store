@@ -219,13 +219,16 @@ export default function LoginForm() {
         </div>
 
         {/* Google Sign-In Button */}
-        <div className="w-full">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            theme="filled_blue"
-            size="large"
-          />
+        <div className="w-full" style={{ overflow: 'visible' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              theme="filled_blue"
+              size="large"
+              width="360"
+            />
+          </div>
         </div>
 
         {/* Guest Login */}

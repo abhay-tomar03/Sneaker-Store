@@ -299,13 +299,16 @@ export default function SignupForm() {
             </div>
 
             {/* Google Sign-Up Button */}
-            <div className="w-full">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                theme="filled_blue"
-                size="large"
-              />
+            <div className="w-full" style={{ overflow: 'visible' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  theme="filled_blue"
+                  size="large"
+                  width="360"
+                />
+              </div>
             </div>
 
             {/* Sign In Link */}

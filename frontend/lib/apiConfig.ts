@@ -7,7 +7,7 @@
 // ============== ENVIRONMENT CONFIG ==============
 export const apiConfig = {
   // Change this to switch between environments
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000',
+  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://sneaker-store-backend-h6op.onrender.com',
   timeout: 30000,
   retryAttempts: 3,
 };
