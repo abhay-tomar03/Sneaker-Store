@@ -99,7 +99,7 @@ export default function CheckoutPage() {
 
     script.onload = () => {
       setScriptLoaded(true);
-      console.log('✅ Razorpay script loaded successfully');
+      // console.log('✅ Razorpay script loaded successfully');
     };
 
     script.onerror = () => {

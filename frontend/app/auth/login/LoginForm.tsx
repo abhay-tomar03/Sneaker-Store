@@ -71,7 +71,7 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      console.log('🔐 Verifying Google credentials...');
+      // console.log('🔐 Verifying Google credentials...');
 
       const response = await fetch(getApiUrl(apiEndpoints.auth.googleVerify), {
         method: 'POST',
@@ -85,14 +85,24 @@ export default function LoginForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Check if user needs to sign up (401 Unauthorized with requiresSignup flag)
+        if (response.status === 401 && errorData.requiresSignup) {
+          const errorMsg = 'Account does not exist. Please sign up first.';
+          setError(errorMsg);
+          toast.info(`ℹ️ ${errorMsg}`, { autoClose: 4000 });
+          // Could optionally redirect to signup here
+          throw new Error(errorMsg);
+        }
+        
         throw new Error(errorData.error || 'Google authentication failed');
       }
 
       const data = await response.json();
       
-      console.log('✅ Google login successful');
-      console.log('📦 Token:', data.token);
-      console.log('👤 User:', data.user);
+      // console.log('✅ Google login successful');
+      // console.log('📦 Token:', data.token);
+      // console.log('👤 User:', data.user);
 
       // Store token in localStorage first
       if (typeof window !== 'undefined' && data.token) {

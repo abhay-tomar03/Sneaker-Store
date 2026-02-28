@@ -39,7 +39,7 @@ export default function SignupForm() {
     setLoading(true);
 
     try {
-      console.log('🔐 Verifying Google credentials...');
+      // console.log('🔐 Verifying Google credentials...');
 
       const response = await fetch(getApiUrl(apiEndpoints.auth.googleVerify), {
         method: 'POST',
@@ -54,14 +54,23 @@ export default function SignupForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Check if account already exists (409 Conflict)
+        if (response.status === 409 && errorData.accountExists) {
+          const errorMsg = 'Account already exists with this email. Please sign in instead.';
+          setError(errorMsg);
+          toast.error(`❌ ${errorMsg}`, { autoClose: 3000 });
+          throw new Error(errorMsg);
+        }
+        
         throw new Error(errorData.error || 'Google signup failed');
       }
 
       const data = await response.json();
       
-      console.log('✅ Google signup successful');
-      console.log('📦 Token:', data.token);
-      console.log('👤 User:', data.user);
+      // console.log('✅ Google signup successful');
+      // console.log('📦 Token:', data.token);
+      // console.log('👤 User:', data.user);
 
       // Store token in localStorage first
       if (typeof window !== 'undefined' && data.token) {

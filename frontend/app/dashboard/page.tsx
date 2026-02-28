@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@/lib/store';
-
+import { useWishlistStore } from '@/lib/wishlistStore';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { ordersAPI } from '@/lib/api';
@@ -19,8 +19,34 @@ export default function DashboardPage() {
   const user = useStore((state) => state.user);
   const cart = useStore((state) => state.cart);
   const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const wishlist = useWishlistStore((state) => state.wishlist);
+  const loadWishlistFromStorage = useWishlistStore((state) => state.loadWishlistFromStorage);
+  const [wishlistCount, setWishlistCount] = useState(0);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Load wishlist from storage on mount and watch for changes
+  useEffect(() => {
+    loadWishlistFromStorage();
+    
+    // Also directly check localStorage as a fallback
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('wishlist');
+      if (stored) {
+        try {
+          const items = JSON.parse(stored);
+          setWishlistCount(Array.isArray(items) ? items.length : 0);
+        } catch (e) {
+          setWishlistCount(0);
+        }
+      }
+    }
+  }, [loadWishlistFromStorage]);
+
+  // Update wishlist count when store changes
+  useEffect(() => {
+    setWishlistCount(wishlist.length);
+  }, [wishlist]);
 
   // Fetch orders
   useEffect(() => {
@@ -54,7 +80,7 @@ export default function DashboardPage() {
   const stats = [
     { label: 'Total Orders', value: orders.length.toString(), icon: '📦', color: 'from-blue-600 to-cyan-600' },
     { label: 'Total Spent', value: `₹${totalSpent.toLocaleString('en-IN')}`, icon: '💰', color: 'from-green-600 to-emerald-600' },
-    { label: 'Wishlist Items', value: '0', icon: '❤️', color: 'from-pink-600 to-rose-600' },
+    { label: 'Wishlist Items', value: wishlistCount.toString(), icon: '❤️', color: 'from-pink-600 to-rose-600' },
     { label: 'Loyalty Points', value: '0', icon: '⭐', color: 'from-yellow-600 to-orange-600' },
   ];
 

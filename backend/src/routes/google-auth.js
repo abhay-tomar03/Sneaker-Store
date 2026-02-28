@@ -17,12 +17,12 @@ const oauth2Client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 /**
  * POST /api/auth/google/verify
  * Verify Google ID token and create/update user
- * Query param: ?allowSignup=true (only on signup page)
+ * Body param: allowSignup (true only on signup page)
  */
 router.post('/google/verify', async (req, res) => {
   try {
     const { token } = req.body;
-    const allowSignup = req.query.allowSignup === 'true'; // Check if signup is allowed
+    const allowSignup = req.body.allowSignup === true; // Check if signup is allowed (from request body)
 
     if (!token) {
       return res.status(400).json({ error: 'No token provided' });
@@ -55,16 +55,22 @@ router.post('/google/verify', async (req, res) => {
       if (mongoConnected) {
         try {
           user = await User.findOne({ email });
-          if (!user) {
-            // Check if we should create the user (only on signup page)
-            if (!allowSignup) {
-              console.log('❌ User not found and signup not allowed from login page');
-              return res.status(401).json({ 
-                error: 'Account does not exist. Please sign up first using the Sign Up page with Google or create an account with email and password.',
-                requiresSignup: true
+          
+          // LOGIC:
+          // On Signup Page (allowSignup=true): Only create NEW users
+          // On Login Page (allowSignup=false): Only login EXISTING users
+          
+          if (allowSignup) {
+            // SIGNUP PAGE: User trying to create account
+            if (user) {
+              // Account already exists
+              console.log('❌ User already exists, cannot create duplicate account');
+              return res.status(409).json({ 
+                error: 'Account already exists with this email. Please sign in instead.',
+                accountExists: true
               });
             }
-
+            
             // Create new user from Google profile
             console.log('👤 Creating new user from Google profile...');
             user = new User({
@@ -80,16 +86,26 @@ router.post('/google/verify', async (req, res) => {
             isNewUser = true;
             console.log('✅ New user created from Google OAuth');
           } else {
-            // Update user profile picture if Google user
+            // LOGIN PAGE: User trying to sign in
+            if (!user) {
+              // Account doesn't exist
+              console.log('❌ User not found - account does not exist');
+              return res.status(401).json({ 
+                error: 'Account does not exist. Please sign up first using the Sign Up page with Google or create an account with email and password.',
+                requiresSignup: true
+              });
+            }
+            
+            // Update Google OAuth info if needed
             if (!user.isGoogleUser) {
               user.isGoogleUser = true;
               user.googleId = userId;
             }
-            if (picture) {
+            if (picture && !user.profilePicture) {
               user.profilePicture = picture;
             }
             await user.save();
-            console.log('✅ Existing user updated (Google OAuth)');
+            console.log('✅ User authenticated via Google OAuth');
           }
         } catch (dbError) {
           console.error('❌ MongoDB error:', dbError.message);

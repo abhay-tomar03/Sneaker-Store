@@ -9,6 +9,7 @@ import { useWishlistStore } from '@/lib/wishlistStore';
 export default function Navigation() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [wishlistDisplay, setWishlistDisplay] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
   
@@ -21,6 +22,7 @@ export default function Navigation() {
   // Get wishlist from Zustand store
   const wishlist = useWishlistStore((state) => state.wishlist);
   const loadWishlistFromStorage = useWishlistStore((state) => state.loadWishlistFromStorage);
+  const clearWishlist = useWishlistStore((state) => state.clearWishlist);
 
   // Load user and wishlist from localStorage on mount
   useEffect(() => {
@@ -29,11 +31,25 @@ export default function Navigation() {
     setMounted(true);
   }, [loadUserFromStorage, loadWishlistFromStorage]);
 
+  // Update wishlist display when store changes
+  useEffect(() => {
+    setWishlistDisplay(wishlist.length);
+  }, [wishlist]);
+
+  // Clear wishlist when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearWishlist();
+      setWishlistDisplay(0);
+    }
+  }, [isAuthenticated, clearWishlist]);
+
   useEffect(() => {
     setShowDropdown(false);
   }, [pathname]);
 
   const handleLogout = () => {
+    clearWishlist();
     logout();
     router.push('/');
   };
@@ -59,9 +75,9 @@ export default function Navigation() {
           </Link>
           <Link href="/wishlist" className="text-pink-400 hover:text-pink-300 transition text-xl hover:scale-110 duration-300 relative group">
             ❤️
-            {wishlist.length > 0 && (
+            {wishlistDisplay > 0 && (
               <span className="absolute -top-2 -right-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-lg">
-                {wishlist.length}
+                {wishlistDisplay}
               </span>
             )}
           </Link>

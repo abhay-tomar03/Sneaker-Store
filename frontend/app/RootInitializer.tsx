@@ -21,6 +21,7 @@ export default function RootInitializer() {
 
   const loadWishlistFromStorage = useWishlistStore((state) => state.loadWishlistFromStorage);
   const syncWishlistWithBackend = useWishlistStore((state) => state.syncWishlistWithBackend);
+  const clearWishlist = useWishlistStore((state) => state.clearWishlist);
 
   // Initialize stores from localStorage on app startup
   useEffect(() => {
@@ -28,6 +29,13 @@ export default function RootInitializer() {
     loadCartFromStorage();
     loadWishlistFromStorage();
   }, [loadUserFromStorage, loadCartFromStorage, loadWishlistFromStorage]);
+
+  // Clear wishlist when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearWishlist();
+    }
+  }, [isAuthenticated, clearWishlist]);
 
   // Sync cart & wishlist with backend when user logs in
   useEffect(() => {
@@ -51,17 +59,17 @@ export default function RootInitializer() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ Cart synced with backend');
+          // console.log('✅ Cart synced with backend');
           // Optional: Update local cart if backend returned different data
           if (data.cart) {
             // Cart is already in localStorage, no need to update unless backend has different items
             localStorage.setItem('cart', JSON.stringify(data.cart));
           }
         } else {
-          console.error('Failed to sync cart with backend');
+          // console.error('Failed to sync cart with backend');
         }
       } catch (error) {
-        console.error('Error syncing with backend:', error);
+        // console.error('Error syncing with backend:', error);
       }
     };
 

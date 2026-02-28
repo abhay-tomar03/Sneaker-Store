@@ -67,7 +67,7 @@ export const useWishlistStore = create<WishlistStore>((set, get) => ({
     if (typeof window !== "undefined") {
       localStorage.removeItem("wishlist");
     }
-    return { wishlist: [] };
+    set({ wishlist: [] });
   },
 
   loadWishlistFromStorage: () => {
@@ -110,9 +110,9 @@ export const useWishlistStore = create<WishlistStore>((set, get) => ({
           set({ wishlist: data.wishlist });
           localStorage.setItem("wishlist", JSON.stringify(data.wishlist));
         }
-        console.log("✅ Wishlist synced with backend");
+        // console.log("✅ Wishlist synced with backend");
       } else {
-        console.error("Failed to sync wishlist with backend");
+        // console.error("Failed to sync wishlist with backend");
       }
     } catch (error) {
       console.error("Error syncing wishlist with backend:", error);

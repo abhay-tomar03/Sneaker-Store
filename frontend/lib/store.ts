@@ -92,6 +92,8 @@ export const useStore = create<Store>((set, get) => ({
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("isGuest");
+      localStorage.removeItem("cart");
+      localStorage.removeItem("wishlist"); // Clear wishlist on logout
     }
     set({
       user: null,
