@@ -259,7 +259,7 @@ export default function CheckoutPage() {
       }
 
       const orderData = await createResponse.json();
-      console.log('✅ Order created:', orderData);
+      // console.log('✅ Order created:', orderData);
 
       if (!orderData.razorpay_order_id || !orderData.razorpay_key_id) {
         throw new Error('Invalid order response from server');
