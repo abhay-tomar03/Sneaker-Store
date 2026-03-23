@@ -62,26 +62,21 @@ class EmailService {
   // SENDGRID (Recommended)
   // ============================================
   initializeSendGrid() {
-    console.log('📧 Initializing SendGrid service...');
-    
+    console.log('📧 Initializing SendGrid Web API...');
     if (!process.env.SENDGRID_API_KEY) {
       console.error('❌ SENDGRID_API_KEY not set');
       return;
     }
-
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'apikey',
-        pass: process.env.SENDGRID_API_KEY
-      },
-      logger: true,
-      debug: process.env.NODE_ENV === 'development'
-    });
-
-    this.verifyConnection();
+    try {
+      const sgMail = require('@sendgrid/mail');
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      this.sgMail = sgMail;
+      console.log('✅ SENDGRID Web API initialized');
+    } catch (err) {
+      console.error('❌ Failed to initialize @sendgrid/mail:', err.message);
+    }
+    // No Nodemailer transporter for SendGrid Web API
+    this.transporter = null;
   }
 
   // ============================================
@@ -389,9 +384,21 @@ class EmailService {
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Order confirmation email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Order confirmation email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Order confirmation email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send order confirmation email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -436,9 +443,21 @@ class EmailService {
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Shipping update email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Shipping update email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Shipping update email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send shipping update email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -464,42 +483,48 @@ class EmailService {
         message = 'Your One-Time Password (OTP) for email verification is:';
       }
 
-      const mailOptions = {
-        from: this.getFromAddress(),
-        to: userEmail,
-        subject: subject,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-              <h1 style="color: white; margin: 0;">SneakHub</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">${heading}</p>
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h2 style="color: white; margin: 0;">${heading}</h2>
+          </div>
+          <div style="padding: 20px;">
+            <p style="color: #333; font-size: 16px;">Hi ${firstName},</p>
+            <p style="color: #666; line-height: 1.6;">${message}</p>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+              <span style="font-size: 32px; letter-spacing: 4px; color: #667eea; font-weight: bold;">${otp}</span>
             </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
-              <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hi ${firstName},</p>
-              <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                ${message}
-              </p>
-              <div style="background: white; border: 2px solid #8b5cf6; padding: 20px; text-align: center; margin: 25px 0; border-radius: 8px;">
-                <p style="color: #8b5cf6; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 5px;">${otp}</p>
-              </div>
-              <p style="color: #6b7280; font-size: 12px; margin: 20px 0;">
-                This code is valid for <strong>10 minutes</strong>. Do not share this code with anyone.
-              </p>
-              <p style="color: #4b5563; font-size: 13px; margin: 15px 0;">
-                If you didn't request this code, please ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;">
-              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2024 SneakHub. All rights reserved.
-              </p>
+            <p style="color: #999; font-size: 14px;">This code will expire in 10 minutes.</p>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
+              <p>If you did not request this, please ignore this email.</p>
             </div>
           </div>
-        `
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ OTP email sent via ${this.service.toUpperCase()} to:`, userEmail);
-      return { success: true, messageId: info.messageId };
+          <div style="background: #f5f5f5; padding: 15px; text-align: center; color: #999; font-size: 12px; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
+          </div>
+        </div>
+      `;
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject,
+          html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ OTP email sent via SENDGRID Web API to:`, userEmail);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const mailOptions = {
+          from: this.getFromAddress(),
+          to: userEmail,
+          subject,
+          html,
+        };
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ OTP email sent via ${this.service.toUpperCase()} to:`, userEmail);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send OTP email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -520,42 +545,52 @@ class EmailService {
 
       const statusInfo = statusMessages[newStatus] || statusMessages.processing;
 
-      const mailOptions = {
-        from: this.getFromAddress(),
-        to: userEmail,
-        subject: `Order ${newStatus.toUpperCase()} - SneakHub`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-              <h2 style="color: white; margin: 0; font-size: 28px;">${statusInfo.emoji} ${statusInfo.title}</h2>
+      const subject = `Order ${newStatus.toUpperCase()} - SneakHub`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 28px;">${statusInfo.emoji} ${statusInfo.title}</h2>
+          </div>
+          <div style="padding: 30px;">
+            <p style="color: #666; font-size: 16px;">Hi ${orderData.shippingAddress?.firstName || 'Valued Customer'},</p>
+            <p style="color: #666; line-height: 1.6; font-size: 15px;">${statusInfo.message}</p>
+            <div style="background: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #667eea; border-radius: 4px;">
+              <p style="margin: 5px 0; color: #333;"><strong>Order ID:</strong> ${orderData._id}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Status:</strong> ${newStatus.toUpperCase()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Updated:</strong> ${new Date().toLocaleDateString()}</p>
             </div>
-            <div style="padding: 30px;">
-              <p style="color: #666; font-size: 16px;">Hi ${orderData.shippingAddress?.firstName || 'Valued Customer'},</p>
-              <p style="color: #666; line-height: 1.6; font-size: 15px;">${statusInfo.message}</p>
-              
-              <div style="background: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #667eea; border-radius: 4px;">
-                <p style="margin: 5px 0; color: #333;"><strong>Order ID:</strong> ${orderData._id}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>Status:</strong> ${newStatus.toUpperCase()}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>Updated:</strong> ${new Date().toLocaleDateString()}</p>
-              </div>
-
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${orderData._id}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: 600;">View Order Details</a>
-
-              <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
-                <p>If you have any questions, feel free to reach out to our support team.</p>
-              </div>
-            </div>
-            <div style="background: #f5f5f5; padding: 15px; text-align: center; color: #999; font-size: 12px;">
-              <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
-              <p style="margin: 5px 0 0 0; font-size: 11px;">This is an automated email. Please don't reply to this email.</p>
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${orderData._id}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: 600;">View Order Details</a>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
+              <p>If you have any questions, feel free to reach out to our support team.</p>
             </div>
           </div>
-        `
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Order status update email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+          <div style="background: #f5f5f5; padding: 15px; text-align: center; color: #999; font-size: 12px;">
+            <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
+            <p style="margin: 5px 0 0 0; font-size: 11px;">This is an automated email. Please don't reply to this email.</p>
+          </div>
+        </div>
+      `;
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject,
+          html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Order status update email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const mailOptions = {
+          from: this.getFromAddress(),
+          to: userEmail,
+          subject,
+          html,
+        };
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Order status update email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send order status update email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -568,167 +603,170 @@ class EmailService {
   async sendPromotionalEmail(userEmail, firstName = 'Valued Customer', promoData) {
     try {
       const { title, discount, code, expiryDate, description, buttonText, buttonLink } = promoData;
-
-      const mailOptions = {
-        from: this.getFromAddress(),
-        to: userEmail,
-        subject: title || 'Exclusive Offer Just for You!',
-        html: `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background-color: #f9f9f9;
-                margin: 0;
-                padding: 20px;
-              }
-              .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                overflow: hidden;
-              }
-              .header {
-                background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
-                color: white;
-                padding: 40px 20px;
-                text-align: center;
-              }
-              .header h1 {
-                margin: 0;
-                font-size: 32px;
-              }
-              .content {
-                padding: 40px 20px;
-                text-align: center;
-              }
-              .discount-badge {
-                background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
-                color: white;
-                padding: 20px;
-                border-radius: 8px;
-                margin: 20px 0;
-                font-size: 36px;
-                font-weight: bold;
-              }
-              .promo-code {
-                background: #f5f5f5;
-                padding: 15px;
-                border: 2px dashed #ec4899;
-                border-radius: 8px;
-                margin: 20px 0;
-              }
-              .promo-code p {
-                margin: 5px 0;
-                color: #333;
-              }
-              .code {
-                font-size: 24px;
-                font-weight: bold;
-                color: #ec4899;
-                font-family: monospace;
-              }
-              .button {
-                display: inline-block;
-                background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
-                color: white;
-                padding: 15px 40px;
-                text-decoration: none;
-                border-radius: 8px;
-                margin: 20px 0;
-                font-weight: 600;
-                font-size: 16px;
-              }
-              .terms {
-                background: #f9f9f9;
-                padding: 15px;
-                margin: 20px 0;
-                border-left: 4px solid #ec4899;
-                text-align: left;
-                border-radius: 4px;
-              }
-              .terms li {
-                font-size: 13px;
-                color: #666;
-                margin: 5px 0;
-              }
-              .footer {
-                background-color: #f5f5f5;
-                padding: 20px;
-                text-align: center;
-                color: #999;
-                font-size: 12px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>🎉 ${title || 'Exclusive Offer'}</h1>
-              </div>
-
-              <div class="content">
-                <p style="color: #666; font-size: 16px;">Hi ${firstName},</p>
-                
-                <p style="color: #666; font-size: 15px; line-height: 1.6;">
-                  ${description || 'We have a special offer just for you!'}
-                </p>
-
-                <div class="discount-badge">
-                  ${discount || 'Special Offer'}
-                </div>
-
-                ${code ? `
-                  <div class="promo-code">
-                    <p style="color: #999; font-size: 13px; margin: 0 0 10px 0;">Use this code to unlock your discount:</p>
-                    <p class="code">${code}</p>
-                  </div>
-                ` : ''}
-
-                ${expiryDate ? `
-                  <p style="color: #ec4899; font-weight: 600; font-size: 14px;">
-                    ⏰ Offer expires on ${new Date(expiryDate).toLocaleDateString()}
-                  </p>
-                ` : ''}
-
-                <a href="${buttonLink || '#'}" class="button">
-                  ${buttonText || 'Shop Now'}
-                </a>
-
-                <div class="terms">
-                  <p style="margin: 0 0 10px 0; font-weight: 600; color: #333;">Terms & Conditions:</p>
-                  <ul style="margin: 0; padding-left: 20px;">
-                    <li>Valid for a limited time only</li>
-                    <li>One code per customer</li>
-                    <li>Cannot be combined with other offers</li>
-                    <li>Applicable on selected items only</li>
-                  </ul>
-                </div>
-
-                <p style="color: #999; font-size: 14px; margin-top: 25px;">
-                  Hurry! This offer won't last long. Start shopping now and save big! 🛍️
-                </p>
-              </div>
-
-              <div class="footer">
-                <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
-                <p style="margin: 5px 0 0 0; color: #999; font-size: 12px;">
-                  To unsubscribe from promotional emails, please contact us.
-                </p>
-              </div>
+      const subject = title || 'Exclusive Offer Just for You!';
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              background-color: #f9f9f9;
+              margin: 0;
+              padding: 20px;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 8px;
+              box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+              overflow: hidden;
+            }
+            .header {
+              background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
+              color: white;
+              padding: 40px 20px;
+              text-align: center;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 32px;
+            }
+            .content {
+              padding: 40px 20px;
+              text-align: center;
+            }
+            .discount-badge {
+              background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
+              color: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+              font-size: 36px;
+              font-weight: bold;
+            }
+            .promo-code {
+              background: #f5f5f5;
+              padding: 15px;
+              border: 2px dashed #ec4899;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .promo-code p {
+              margin: 5px 0;
+              color: #333;
+            }
+            .code {
+              font-size: 24px;
+              font-weight: bold;
+              color: #ec4899;
+              font-family: monospace;
+            }
+            .button {
+              display: inline-block;
+              background: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
+              color: white;
+              padding: 15px 40px;
+              text-decoration: none;
+              border-radius: 8px;
+              margin: 20px 0;
+              font-weight: 600;
+              font-size: 16px;
+            }
+            .terms {
+              background: #f9f9f9;
+              padding: 15px;
+              margin: 20px 0;
+              border-left: 4px solid #ec4899;
+              text-align: left;
+              border-radius: 4px;
+            }
+            .terms li {
+              font-size: 13px;
+              color: #666;
+              margin: 5px 0;
+            }
+            .footer {
+              background-color: #f5f5f5;
+              padding: 20px;
+              text-align: center;
+              color: #999;
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 ${title || 'Exclusive Offer'}</h1>
             </div>
-          </body>
-          </html>
-        `
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Promotional email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+            <div class="content">
+              <p style="color: #666; font-size: 16px;">Hi ${firstName},</p>
+              <p style="color: #666; font-size: 15px; line-height: 1.6;">
+                ${description || 'We have a special offer just for you!'}
+              </p>
+              <div class="discount-badge">
+                ${discount || 'Special Offer'}
+              </div>
+              ${code ? `
+                <div class="promo-code">
+                  <p style="color: #999; font-size: 13px; margin: 0 0 10px 0;">Use this code to unlock your discount:</p>
+                  <p class="code">${code}</p>
+                </div>
+              ` : ''}
+              ${expiryDate ? `
+                <p style="color: #ec4899; font-weight: 600; font-size: 14px;">
+                  ⏰ Offer expires on ${new Date(expiryDate).toLocaleDateString()}
+                </p>
+              ` : ''}
+              <a href="${buttonLink || '#'}" class="button">
+                ${buttonText || 'Shop Now'}
+              </a>
+              <div class="terms">
+                <p style="margin: 0 0 10px 0; font-weight: 600; color: #333;">Terms & Conditions:</p>
+                <ul style="margin: 0; padding-left: 20px;">
+                  <li>Valid for a limited time only</li>
+                  <li>One code per customer</li>
+                  <li>Cannot be combined with other offers</li>
+                  <li>Applicable on selected items only</li>
+                </ul>
+              </div>
+              <p style="color: #999; font-size: 14px; margin-top: 25px;">
+                Hurry! This offer won't last long. Start shopping now and save big! 🛍️
+              </p>
+            </div>
+            <div class="footer">
+              <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
+              <p style="margin: 5px 0 0 0; color: #999; font-size: 12px;">
+                To unsubscribe from promotional emails, please contact us.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject,
+          html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Promotional email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const mailOptions = {
+          from: this.getFromAddress(),
+          to: userEmail,
+          subject,
+          html,
+        };
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Promotional email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send promotional email (${this.service}):`, error.message);
       return { success: false, error: error.message };
