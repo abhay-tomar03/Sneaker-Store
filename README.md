@@ -2,7 +2,7 @@
 
 A full-stack e-commerce platform for buying and selling premium sneakers with modern features, secure payments, and seamless user experience.
 
-**Live Demo:** [https://sneaker-store-lake-nine.vercel.app](https://sneaker-store-lake-nine.vercel.app)
+**Live Demo:** [https://sneaker-store-lake-nine.vercel.app](https://sneaker-store-frontend-navy.vercel.app)
 
 ---
 
