@@ -189,7 +189,7 @@ class EmailService {
     `
         : '';
 
-      const mailOptions = {
+      const baseMailOptions = {
         from: this.getFromAddress(),
         to: userEmail,
         subject: `Order Confirmation - Order #${order._id}`,
@@ -384,28 +384,31 @@ class EmailService {
         `
       };
 
-      // Determine frontend URL based on environment
-      let frontendUrl = process.env.FRONTEND_URL;
-      if (!frontendUrl) {
-        frontendUrl = process.env.NODE_ENV === 'production'
-          ? 'https://sneaker-store-frontend-navy.vercel.app'
-          : 'http://localhost:3000';
-      }
-      // Replace the order link in the HTML
-      let htmlWithOrderLink = mailOptions.html.replace(/https?:\/\/(localhost:3000|sneaker-store-frontend-navy\.vercel\.app)\/orders\/[\w\d]+/g, `${frontendUrl}/orders/${order._id}`);
+      // Use only process.env.FRONTEND_URL for the order link, fallback to Vercel if not set
+      const frontendUrl = process.env.FRONTEND_URL || 'https://sneaker-store-frontend-navy.vercel.app';
+      const orderLink = `${frontendUrl}/orders/${order._id}`;
+
+      // Build the HTML with the correct order link injected
+      const mailOptions = {
+        ...baseMailOptions,
+        html: baseMailOptions.html.replace(
+          /<a href="[^"]*\/orders\/${order._id}" class="button">Track Your Order<\/a>/,
+          `<a href="${orderLink}" class="button">Track Your Order</a>`
+        )
+      };
 
       if (this.service === 'sendgrid' && this.sgMail) {
         const msg = {
           to: userEmail,
           from: this.getFromAddress(),
           subject: mailOptions.subject,
-          html: htmlWithOrderLink,
+          html: mailOptions.html,
         };
         const info = await this.sgMail.send(msg);
         console.log(`✅ Order confirmation email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
         return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
       } else {
-        const info = await this.transporter.sendMail({ ...mailOptions, html: htmlWithOrderLink });
+        const info = await this.transporter.sendMail(mailOptions);
         console.log(`✅ Order confirmation email sent via ${this.service.toUpperCase()}:`, info.messageId);
         return { success: true, messageId: info.messageId };
       }

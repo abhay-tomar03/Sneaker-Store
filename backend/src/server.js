@@ -3,6 +3,7 @@
  * Node.js + Express API Server
  */
 
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -13,6 +14,7 @@ const { emailService } = require('./utils/emailService');
 
 const app = express();
 
+console.log('NODE_ENV console at startup:', process.env.NODE_ENV);
 // Fix for Render/Heroku/Proxies: trust X-Forwarded-For header for rate limiting and IP detection
 app.set('trust proxy', 1);
 
