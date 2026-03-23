@@ -25,6 +25,14 @@ class EmailService {
     this.service = process.env.EMAIL_SERVICE || 'gmail';
     this.transporter = null;
     this.initializeService();
+    console.log(`📨 EmailService initialized with provider: ${this.service}`);
+    if (this.service === 'sendgrid') {
+      if (process.env.SENDGRID_API_KEY) {
+        console.log('✅ SENDGRID Web API active (API key set)');
+      } else {
+        console.log('❌ SENDGRID Web API active (API key NOT set)');
+      }
+    }
   }
 
   initializeService() {
@@ -69,26 +77,21 @@ class EmailService {
   // SENDGRID (Recommended)
   // ============================================
   initializeSendGrid() {
-    console.log('📧 Initializing SendGrid service...');
-    
+    console.log('📧 Initializing SendGrid Web API...');
     if (!process.env.SENDGRID_API_KEY) {
       console.error('❌ SENDGRID_API_KEY not set');
       return;
     }
-
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'apikey',
-        pass: process.env.SENDGRID_API_KEY
-      },
-      logger: true,
-      debug: process.env.NODE_ENV === 'development'
-    });
-
-    this.verifyConnection();
+    try {
+      const sgMail = require('@sendgrid/mail');
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      this.sgMail = sgMail;
+      console.log('✅ SENDGRID Web API initialized');
+    } catch (err) {
+      console.error('❌ Failed to initialize @sendgrid/mail:', err.message);
+    }
+        // No Nodemailer transporter for SendGrid Web API
+        this.transporter = null;
   }
 
   // ============================================
@@ -167,21 +170,16 @@ class EmailService {
   // ============================================
   async sendOrderConfirmationEmail(order, userEmail) {
     try {
+      // ...existing code for html, itemsList, addressInfo...
       const userId = order.userId || order.user?._id || 'unknown';
-      const itemsList = order.items
-        .map(
-          (item) =>
-            `
+      const itemsList = order.items.map((item) => `
         <tr>
           <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.name}</td>
           <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">Qty: ${item.quantity}</td>
           <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">₹${item.price.toLocaleString()}</td>
         </tr>
-      `
-        )
-        .join('');
-      const addressInfo = order.shippingAddress
-        ? `
+      `).join('');
+      const addressInfo = order.shippingAddress ? `
         <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 5px;">
         <h3 style="margin-top: 0; color: #333;">Delivery Address</h3>
         <p style="margin: 5px 0; color: #666;">
@@ -191,196 +189,48 @@ class EmailService {
           Phone: ${order.shippingAddress.phone}
         </p>
       </div>
-    `
-        : '';
+    ` : '';
       const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background-color: #f9f9f9;
-                margin: 0;
-                padding: 20px;
-              }
-              .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                overflow: hidden;
-              }
-              .header {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 30px;
-                text-align: center;
-              }
-              .header h1 {
-                margin: 0;
-                font-size: 28px;
-              }
-              .header p {
-                margin: 10px 0 0 0;
-                opacity: 0.9;
-              }
-              .content {
-                padding: 30px;
-              }
-              .order-info {
-                background-color: #f9f9f9;
-                border-left: 4px solid #667eea;
-                padding: 15px;
-                margin: 20px 0;
-              }
-              .order-info p {
-                margin: 5px 0;
-                color: #333;
-              }
-              .order-info strong {
-                color: #667eea;
-              }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 20px 0;
-              }
-              table th {
-                background-color: #f5f5f5;
-                padding: 10px;
-                text-align: left;
-                font-weight: 600;
-                color: #333;
-                border-bottom: 2px solid #667eea;
-              }
-              .total-section {
-                margin: 20px 0;
-                padding: 15px;
-                background-color: #f9f9f9;
-                border-left: 4px solid #667eea;
-              }
-              .total-row {
-                display: flex;
-                justify-content: space-between;
-                margin: 10px 0;
-                font-size: 16px;
-              }
-              .total-final {
-                display: flex;
-                justify-content: space-between;
-                margin: 15px 0;
-                font-size: 20px;
-                font-weight: bold;
-                color: #667eea;
-              }
-              .button {
-                display: inline-block;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 12px 30px;
-                text-decoration: none;
-                border-radius: 5px;
-                margin: 20px 0;
-                text-align: center;
-                font-weight: 600;
-              }
-              .button:hover {
-                opacity: 0.9;
-              }
-              .footer {
-                background-color: #f5f5f5;
-                padding: 20px;
-                text-align: center;
-                color: #999;
-                font-size: 12px;
-              }
-              .info-box {
-                background-color: #e8f4f8;
-                border-left: 4px solid #0288d1;
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 4px;
-              }
-              .info-box p {
-                margin: 5px 0;
-                color: #0288d1;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>✅ Order Confirmed!</h1>
-                <p>Your order has been received</p>
-              </div>
-              <div class="content">
-                <p style="color: #666; font-size: 16px;">Hi ${order.shippingAddress?.firstName || 'Valued Customer'},</p>
-                <p style="color: #666; line-height: 1.6;">
-                  Thank you for your order! We're excited to get your new sneakers to you. 👟
-                </p>
-                <div class="order-info">
-                  <p><strong>Order Number:</strong> #${order._id}</p>
-                  <p><strong>Order Date:</strong> ${new Date(order.createdAt).toLocaleDateString('en-IN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}</p>
-                  <p><strong>Payment Method:</strong> ${this.getPaymentMethod(order.paymentMethod)}</p>
-                  <p><strong>Payment Status:</strong> <span style="color: #4caf50; font-weight: 600;">✓ Confirmed</span></p>
-                </div>
-                <h3 style="color: #333; margin-top: 20px;">📦 Order Items</h3>
-                <table>
-                  <th>Product</th>
-                  <th>Quantity</th>
-                  <th>Price</th>
-                  ${itemsList}
-                </table>
-                <div class="total-section">
-                  <div class="total-row">
-                    <span>Subtotal:</span>
-                    <span>₹${(order.totalAmount - (order.shippingCost || 0) - (order.tax || 0)).toLocaleString()}</span>
-                  </div>
-                  ${order.tax ? `<div class="total-row"><span>Tax:</span><span>₹${order.tax.toLocaleString()}</span></div>` : ''}
-                  ${order.shippingCost ? `<div class="total-row"><span>Shipping:</span><span>₹${order.shippingCost.toLocaleString()}</span></div>` : ''}
-                  ${order.discount ? `<div class="total-row"><span>Discount:</span><span>-₹${order.discount.toLocaleString()}</span></div>` : ''}
-                  <div class="total-final">
-                    <span>Total:</span>
-                    <span>₹${order.totalAmount.toLocaleString()}</span>
-                  </div>
-                </div>
-                ${addressInfo}
-                <div class="info-box">
-                  <p><strong>📦 What's Next?</strong></p>
-                  <p>We'll process your order and ship it out soon. You'll receive a tracking number via email as soon as your order ships.</p>
-                </div>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${order._id}" class="button">Track Your Order</a>
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                  <p style="color: #999; font-size: 14px; margin: 0;">
-                    If you have any questions, feel free to reach out to our support team.
-                  </p>
-                </div>
-              </div>
-              <div class="footer">
-                <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
-                <p style="margin: 5px 0 0 0; color: #999; font-size: 12px;">
-                  This is an automated email. Please don't reply to this email.
-                </p>
-              </div>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h2 style="color: white; margin: 0;">Thank you for your order!</h2>
+          </div>
+          <div style="padding: 20px;">
+            <p style="color: #333; font-size: 16px;">Hi ${order.shippingAddress?.firstName || 'Valued Customer'},</p>
+            <p style="color: #666; line-height: 1.6;">We have received your order and are getting it ready for you. Here are your order details:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <thead>
+                <tr>
+                  <th style="padding: 10px; border-bottom: 2px solid #667eea; text-align: left; color: #667eea;">Product</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #667eea; text-align: center; color: #667eea;">Quantity</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #667eea; text-align: right; color: #667eea;">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsList}
+              </tbody>
+            </table>
+            <p style="color: #333; font-size: 16px; margin-top: 20px;"><strong>Total:</strong> ₹${order.totalPrice?.toLocaleString() || 'N/A'}</p>
+            ${addressInfo}
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 14px;">
+              <p>Order ID: <strong>${order._id}</strong></p>
+              <p>If you have any questions, please contact our support team.</p>
             </div>
-          </body>
-          </html>
-        `;
-      if (process.env.EMAIL_SERVICE === 'sendgrid' && sgMail) {
+          </div>
+          <div style="background: #f5f5f5; padding: 15px; text-align: center; color: #999; font-size: 12px; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
+          </div>
+        </div>
+      `;
+      if (this.service === 'sendgrid' && this.sgMail) {
         const msg = {
           to: userEmail,
           from: this.getFromAddress(),
           subject: `Order Confirmation - Order #${order._id}`,
           html,
         };
-        const info = await sgMail.send(msg);
-        console.log(`✅ Order confirmation email sent via SENDGRID API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Order confirmation email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
         return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
       } else {
         const mailOptions = {
@@ -437,9 +287,21 @@ class EmailService {
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Shipping update email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Shipping update email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Shipping update email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send shipping update email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -464,41 +326,35 @@ class EmailService {
         message = 'Your One-Time Password (OTP) for email verification is:';
       }
       const html = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-              <h1 style="color: white; margin: 0;">SneakHub</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">${heading}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h2 style="color: white; margin: 0;">${heading}</h2>
+          </div>
+          <div style="padding: 20px;">
+            <p style="color: #333; font-size: 16px;">Hi ${firstName},</p>
+            <p style="color: #666; line-height: 1.6;">${message}</p>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+              <span style="font-size: 32px; letter-spacing: 4px; color: #667eea; font-weight: bold;">${otp}</span>
             </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
-              <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hi ${firstName},</p>
-              <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                ${message}
-              </p>
-              <div style="background: white; border: 2px solid #8b5cf6; padding: 20px; text-align: center; margin: 25px 0; border-radius: 8px;">
-                <p style="color: #8b5cf6; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 5px;">${otp}</p>
-              </div>
-              <p style="color: #6b7280; font-size: 12px; margin: 20px 0;">
-                This code is valid for <strong>10 minutes</strong>. Do not share this code with anyone.
-              </p>
-              <p style="color: #4b5563; font-size: 13px; margin: 15px 0;">
-                If you didn't request this code, please ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;">
-              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2024 SneakHub. All rights reserved.
-              </p>
+            <p style="color: #999; font-size: 14px;">This code will expire in 10 minutes.</p>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
+              <p>If you did not request this, please ignore this email.</p>
             </div>
           </div>
-        `;
-      if (process.env.EMAIL_SERVICE === 'sendgrid' && sgMail) {
+          <div style="background: #f5f5f5; padding: 15px; text-align: center; color: #999; font-size: 12px; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
+          </div>
+        </div>
+      `;
+      if (this.service === 'sendgrid' && this.sgMail) {
         const msg = {
           to: userEmail,
           from: this.getFromAddress(),
           subject,
           html,
         };
-        const info = await sgMail.send(msg);
-        console.log(`✅ OTP email sent via SENDGRID API to:`, userEmail);
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ OTP email sent via SENDGRID Web API to:`, userEmail);
         return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
       } else {
         const mailOptions = {
@@ -564,9 +420,21 @@ class EmailService {
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Order status update email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+      if (this.service === 'sendgrid' && this.sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+        };
+        const info = await this.sgMail.send(msg);
+        console.log(`✅ Order status update email sent via SENDGRID Web API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Order status update email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send order status update email (${this.service}):`, error.message);
       return { success: false, error: error.message };

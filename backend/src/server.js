@@ -105,16 +105,20 @@ app.get('/api/health', (req, res) => {
     3: 'disconnecting'
   };
 
-  // Check SendGrid status
+  // Improved SendGrid status (no transporter check for SendGrid Web API)
   let emailStatus = '❌ Email service not initialized';
-  if (emailService && emailService.service === 'sendgrid') {
-    if (emailService.transporter && emailService.transporter._verified) {
-      emailStatus = '✅ SENDGRID email service is ready';
+  if (emailService) {
+    if (emailService.service === 'sendgrid') {
+      if (process.env.SENDGRID_API_KEY) {
+        emailStatus = '✅ SENDGRID Web API active (API key set)';
+      } else {
+        emailStatus = '❌ SENDGRID Web API active (API key NOT set)';
+      }
+    } else if (emailService.transporter && emailService.transporter._verified) {
+      emailStatus = `✅ ${emailService.service.toUpperCase()} email service is ready`;
     } else {
-      emailStatus = '⚠️ SENDGRID email service not verified';
+      emailStatus = `ℹ️ Email service: ${emailService.service}`;
     }
-  } else if (emailService && emailService.service) {
-    emailStatus = `ℹ️ Email service: ${emailService.service}`;
   }
 
   res.json({
