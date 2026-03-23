@@ -563,22 +563,7 @@ export default function ProductDetailPage({ params }: PageProps) {
       </div>
 
       {/* Size Chart Modal */}
-      {sizeChartOpen && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="bg-[#181e2a] rounded-2xl p-6 sm:p-8 max-w-2xl w-full max-h-96 overflow-y-auto border border-purple-500/20 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold">Size Chart</h2>
-              <button 
-                onClick={() => setSizeChartOpen(false)}
-                className="text-gray-400 hover:text-white text-2xl font-bold"
-              >
-                ✕
-              </button>
-            </div>
-            <SizeChart />
-          </div>
-        </div>
-      )}
+      <SizeChart isOpen={sizeChartOpen} onClose={() => setSizeChartOpen(false)} />
     </div>
   );
 }
