@@ -8,6 +8,13 @@
  */
 
 const nodemailer = require('nodemailer');
+let sgMail = null;
+if (process.env.EMAIL_SERVICE === 'sendgrid') {
+  sgMail = require('@sendgrid/mail');
+  if (process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  }
+}
 
 // ============================================
 // EMAIL SERVICE FACTORY
@@ -161,7 +168,6 @@ class EmailService {
   async sendOrderConfirmationEmail(order, userEmail) {
     try {
       const userId = order.userId || order.user?._id || 'unknown';
-      
       const itemsList = order.items
         .map(
           (item) =>
@@ -174,7 +180,6 @@ class EmailService {
       `
         )
         .join('');
-
       const addressInfo = order.shippingAddress
         ? `
         <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 5px;">
@@ -188,12 +193,7 @@ class EmailService {
       </div>
     `
         : '';
-
-      const mailOptions = {
-        from: this.getFromAddress(),
-        to: userEmail,
-        subject: `Order Confirmation - Order #${order._id}`,
-        html: `
+      const html = `
           <!DOCTYPE html>
           <html>
           <head>
@@ -315,14 +315,11 @@ class EmailService {
                 <h1>✅ Order Confirmed!</h1>
                 <p>Your order has been received</p>
               </div>
-
               <div class="content">
                 <p style="color: #666; font-size: 16px;">Hi ${order.shippingAddress?.firstName || 'Valued Customer'},</p>
-                
                 <p style="color: #666; line-height: 1.6;">
                   Thank you for your order! We're excited to get your new sneakers to you. 👟
                 </p>
-
                 <div class="order-info">
                   <p><strong>Order Number:</strong> #${order._id}</p>
                   <p><strong>Order Date:</strong> ${new Date(order.createdAt).toLocaleDateString('en-IN', {
@@ -333,7 +330,6 @@ class EmailService {
                   <p><strong>Payment Method:</strong> ${this.getPaymentMethod(order.paymentMethod)}</p>
                   <p><strong>Payment Status:</strong> <span style="color: #4caf50; font-weight: 600;">✓ Confirmed</span></p>
                 </div>
-
                 <h3 style="color: #333; margin-top: 20px;">📦 Order Items</h3>
                 <table>
                   <th>Product</th>
@@ -341,7 +337,6 @@ class EmailService {
                   <th>Price</th>
                   ${itemsList}
                 </table>
-
                 <div class="total-section">
                   <div class="total-row">
                     <span>Subtotal:</span>
@@ -355,23 +350,18 @@ class EmailService {
                     <span>₹${order.totalAmount.toLocaleString()}</span>
                   </div>
                 </div>
-
                 ${addressInfo}
-
                 <div class="info-box">
                   <p><strong>📦 What's Next?</strong></p>
                   <p>We'll process your order and ship it out soon. You'll receive a tracking number via email as soon as your order ships.</p>
                 </div>
-
                 <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${order._id}" class="button">Track Your Order</a>
-
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                   <p style="color: #999; font-size: 14px; margin: 0;">
                     If you have any questions, feel free to reach out to our support team.
                   </p>
                 </div>
               </div>
-
               <div class="footer">
                 <p style="margin: 0;">© 2026 SneakHub. All rights reserved.</p>
                 <p style="margin: 5px 0 0 0; color: #999; font-size: 12px;">
@@ -381,12 +371,28 @@ class EmailService {
             </div>
           </body>
           </html>
-        `
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Order confirmation email sent via ${this.service.toUpperCase()}:`, info.messageId);
-      return { success: true, messageId: info.messageId };
+        `;
+      if (process.env.EMAIL_SERVICE === 'sendgrid' && sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject: `Order Confirmation - Order #${order._id}`,
+          html,
+        };
+        const info = await sgMail.send(msg);
+        console.log(`✅ Order confirmation email sent via SENDGRID API:`, info[0]?.headers['x-message-id'] || info[0]?.messageId);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const mailOptions = {
+          from: this.getFromAddress(),
+          to: userEmail,
+          subject: `Order Confirmation - Order #${order._id}`,
+          html,
+        };
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ Order confirmation email sent via ${this.service.toUpperCase()}:`, info.messageId);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send order confirmation email (${this.service}):`, error.message);
       return { success: false, error: error.message };
@@ -448,7 +454,6 @@ class EmailService {
       let subject = '';
       let heading = '';
       let message = '';
-
       if (purpose === 'reset') {
         subject = 'Password Reset Code - SneakHub';
         heading = 'Password Reset';
@@ -458,12 +463,7 @@ class EmailService {
         heading = 'Verify Your Email';
         message = 'Your One-Time Password (OTP) for email verification is:';
       }
-
-      const mailOptions = {
-        from: this.getFromAddress(),
-        to: userEmail,
-        subject: subject,
-        html: `
+      const html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
               <h1 style="color: white; margin: 0;">SneakHub</h1>
@@ -489,12 +489,28 @@ class EmailService {
               </p>
             </div>
           </div>
-        `
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ OTP email sent via ${this.service.toUpperCase()} to:`, userEmail);
-      return { success: true, messageId: info.messageId };
+        `;
+      if (process.env.EMAIL_SERVICE === 'sendgrid' && sgMail) {
+        const msg = {
+          to: userEmail,
+          from: this.getFromAddress(),
+          subject,
+          html,
+        };
+        const info = await sgMail.send(msg);
+        console.log(`✅ OTP email sent via SENDGRID API to:`, userEmail);
+        return { success: true, messageId: info[0]?.headers['x-message-id'] || info[0]?.messageId };
+      } else {
+        const mailOptions = {
+          from: this.getFromAddress(),
+          to: userEmail,
+          subject,
+          html,
+        };
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`✅ OTP email sent via ${this.service.toUpperCase()} to:`, userEmail);
+        return { success: true, messageId: info.messageId };
+      }
     } catch (error) {
       console.error(`❌ Failed to send OTP email (${this.service}):`, error.message);
       return { success: false, error: error.message };
