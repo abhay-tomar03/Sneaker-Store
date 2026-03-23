@@ -146,7 +146,12 @@ class EmailService {
       if (error) {
         console.error(`❌ ${this.service.toUpperCase()} service error:`, error.message);
       } else {
-        console.log(`✅ ${this.service.toUpperCase()} email service is ready`);
+        this.transporter._verified = true;
+        if (this.service === 'sendgrid') {
+          console.log('✅ SENDGRID email service is ready');
+        } else {
+          console.log(`✅ ${this.service.toUpperCase()} email service is ready`);
+        }
       }
     });
   }

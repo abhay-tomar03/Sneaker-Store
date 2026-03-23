@@ -8,8 +8,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
+const { emailService } = require('./utils/emailService');
+
 
 const app = express();
+
+// Fix for Render/Heroku/Proxies: trust X-Forwarded-For header for rate limiting and IP detection
+app.set('trust proxy', 1);
 
 // ============== SECURITY MIDDLEWARE ==============
 app.use(helmet()); // Add security headers
@@ -99,7 +104,19 @@ app.get('/api/health', (req, res) => {
     2: 'connecting',
     3: 'disconnecting'
   };
-  
+
+  // Check SendGrid status
+  let emailStatus = '❌ Email service not initialized';
+  if (emailService && emailService.service === 'sendgrid') {
+    if (emailService.transporter && emailService.transporter._verified) {
+      emailStatus = '✅ SENDGRID email service is ready';
+    } else {
+      emailStatus = '⚠️ SENDGRID email service not verified';
+    }
+  } else if (emailService && emailService.service) {
+    emailStatus = `ℹ️ Email service: ${emailService.service}`;
+  }
+
   res.json({
     status: '✅ Server is running',
     timestamp: new Date().toISOString(),
@@ -109,6 +126,7 @@ app.get('/api/health', (req, res) => {
       readyState: mongoState,
       uri: process.env.MONGODB_URI ? '✅ Configured' : '❌ Not configured'
     },
+    email: emailStatus,
     environment: process.env.NODE_ENV || 'development'
   });
 });
